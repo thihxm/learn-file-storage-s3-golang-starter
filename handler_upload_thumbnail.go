@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -48,7 +49,18 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Couldn't get thumbnail", err)
 		return
 	}
-	mediaType := imageHeader.Header.Get("Content-Type")
+	contentType := imageHeader.Header.Get("Content-Type")
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Couldn't parse media type", err)
+		return
+	}
+
+	if mediaType != "image/jpeg" && mediaType != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid media type", errors.New("unsupported media type"))
+		return
+	}
 
 	video, err := cfg.db.GetVideo(videoID)
 	if err != nil {
