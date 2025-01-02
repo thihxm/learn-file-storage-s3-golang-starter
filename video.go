@@ -128,3 +128,16 @@ func getVideoAspectRatio(filePath string) (string, error) {
 
 	return "other", nil
 }
+
+func processVideoForFastStart(filePath string) (string, error) {
+	outputPath := filePath + ".processing"
+
+	ffmpegCmd := exec.Command("ffmpeg", "-i", filePath, "-c", "copy", "-movflags", "faststart", "-f", "mp4", outputPath)
+
+	err := ffmpegCmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("couldn't run ffmpeg: %w", err)
+	}
+
+	return outputPath, nil
+}
