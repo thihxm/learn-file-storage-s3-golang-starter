@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -9,12 +8,10 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -147,7 +144,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	videoURL := fmt.Sprintf("%s,%s", cfg.s3Bucket, videoKey)
+	videoURL := fmt.Sprintf("https://%s.cloudfront.net/%s", cfg.s3CfDistribution, videoKey)
 	video.VideoURL = &videoURL
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
@@ -155,46 +152,10 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	video, err = cfg.dbVideoToSignedVideo(video)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't sign video URL", err)
 		return
 	}
 
 	respondWithJSON(w, http.StatusOK, video)
-}
-
-func generatePresignedURL(s3Client *s3.Client, bucket, key string, expireTime time.Duration) (string, error) {
-	presignClient := s3.NewPresignClient(s3Client)
-
-	req, err := presignClient.PresignGetObject(
-		context.TODO(),
-		&s3.GetObjectInput{
-			Bucket: &bucket,
-			Key:    &key,
-		},
-		s3.WithPresignExpires(expireTime),
-	)
-	if err != nil {
-		return "", fmt.Errorf("couldn't presign URL: %w", err)
-	}
-
-	return req.URL, nil
-}
-
-func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
-	videoLoc := strings.Split(*video.VideoURL, ",")
-	if len(videoLoc) != 2 {
-		return database.Video{}, fmt.Errorf("invalid video URL")
-	}
-	bucket := videoLoc[0]
-	key := videoLoc[1]
-
-	signedURL, err := generatePresignedURL(cfg.s3Client, bucket, key, SignedURLExpireTime)
-	if err != nil {
-		return database.Video{}, fmt.Errorf("couldn't generate presigned URL: %w", err)
-	}
-
-	video.VideoURL = &signedURL
-	return video, nil
 }
